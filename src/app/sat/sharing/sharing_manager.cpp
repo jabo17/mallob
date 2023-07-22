@@ -198,6 +198,12 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	std::sort(clauseBegin+ClauseMetadata::numBytes(), clauseBegin+clauseSize);
 
 	_export_buffer->produce(clauseBegin, clauseSize, clauseLbd, solverId, _internal_epoch);
+
+	// Log the clause
+	int hash = 0;
+	for(int i = ClauseMetadata::numBytes(), i < clause.size(), i++) {
+		LOGGER(_logger, V2_INFO, "PRODUCED " + std::to_string(solverId) + " " + std::to_string(Mallob::commutativeHash(clause.begin, clause.size)));
+	}
 	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
 
 	if (tldClauseVec) delete tldClauseVec;
