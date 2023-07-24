@@ -205,9 +205,7 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	_produced_cls_ofs[solverId] 
 		<< Timer::elapsedSeconds() << " "
 		<< Mallob::nonCommutativeHash(clause.begin, clause.size) << " " 
-		<< clause.toStr() << " " 
-		<< clause.lbd << " " 
-		<< clause.size << std::endl; 
+		<< clause.toStr() << std::endl; 
 	//LOGGER(_logger, V2_INFO, "PRODUCED %i %i\n", solverId, Mallob::commutativeHash(clause.begin, clause.size));
 	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
 
