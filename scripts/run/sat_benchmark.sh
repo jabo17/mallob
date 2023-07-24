@@ -32,16 +32,16 @@
 
 # 8 for normal utilization, keeping hardware threads idle
 # 4 for full utilization, spawning a solver at each hardware thread
-nhwthreadsperproc=8
+nhwthreadsperproc=32
 
 # Some environment variables for Mallob
 RDMAV_FORK_SAFE=1
-NPROCS="$(($(nproc)/$nhwthreadsperproc))" 
+NPROCS="$(($(nproc)/2*$nhwthreadsperproc))" 
 PATH="build:$PATH"
 
 # TODO Set the portfolio of solvers to cycle through
 # (k=Kissat, c=CaDiCaL, l=Lingeling, g=Glucose)
-portfolio="kkclkkclkkclkkclccgg"
+portfolio="kcl"
 #portfolio="k"
 #portfolio="c"
 
@@ -65,7 +65,13 @@ baselogdir="cls-diversitiy-exp1"
 sublogdir="${baselogdir}/${portfolio}-cbdf${cbdf}-T${timeout}"
 
 # TODO Add further options to these arguments Mallob is called with.
-malloboptions="-t=4 -T=$timeout -v=3 -sleep=1000 -appmode=fork -v=3 -interface-fs=0 -trace-dir=. -pipe-large-solutions=0 -processes-per-host=$NPROCS -regular-process-allocation -max-lits-per-thread=50000000 -strict-clause-length-limit=20 -clause-filter-clear-interval=500 -max-lbd-partition-size=2 -export-chunks=20 -clause-buffer-discount=$cbdf -satsolver=$portfolio"
+#malloboptions="-t=4 -T=$timeout -v=3 -sleep=1000 -appmode=fork -v=3 -interface-fs=0 -trace-dir=. -pipe-large-solutions=0 -processes-per-host=$NPROCS -regular-process-allocation -max-lits-per-thread=50000000 -strict-clause-length-limit=20 -clause-filter-clear-interval=500 -max-lbd-partition-size=2 -export-chunks=20 -clause-buffer-discount=$cbdf -satsolver=$portfolio"
+malloboptions=" \
+`#deployment` -rpa=1 -pph=$NPROCS -mlpt=50000000 -t=$nhwthreadsperproc -T=$timeout \ 
+`#portfolio,diversification` -satsolver=$portfolio -isp=0.5 -div-phases=1 -div-noise=1 -div-elim=0 -scsd=1 \ 
+`#sharingsetup` -scll=255 -slbdl=255 -csm=2 -mlbdps=5 -cfm=3 -cfci=15 -mscf=5 -bem=1 -aim=1 -rlbd=0 -ilbd=1 \ 
+`#sharingvolume` -s=0.5 -cbbs=$((188 * $nhwthreadsperproc)) -cblm=1 -cblp=100000 -cusv=1 \ 
+`#randomseed` -seed=0"
 
 #####################################################################
 
@@ -259,7 +265,7 @@ for f in $(cat $1) ; do
         fi
         
         # Run Mallob
-        mpirun -np $NPROCS --bind-to hwthread --map-by ppr:${NPROCS}:node:pe=$nhwthreadsperproc build/mallob -mono=$f -log=$logdir $malloboptions 2>&1 > $logdir/OUT
+        mpirun -np $NPROCS --bind-to core --map-by ppr:${NPROCS}:node:pe=$nhwthreadsperproc build/mallob -mono=$f -log=$logdir $malloboptions 2>&1 > $logdir/OUT
         
         # Clean up
         cleanup

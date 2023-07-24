@@ -112,6 +112,8 @@ SharingManager::SharingManager(
 		});
 		_solver_revisions.push_back(_solvers[i]->getSolverSetup().solverRevision);
 		_solver_stats.push_back(&_solvers[i]->getSolverStatsRef());
+
+		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
 	}
 
 	if (_params.deterministicSolving()) {
@@ -200,7 +202,13 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	_export_buffer->produce(clauseBegin, clauseSize, clauseLbd, solverId, _internal_epoch);
 
 	// Log the clause
-	LOGGER(_logger, V2_INFO, "PRODUCED %i %i\n", solverId, Mallob::commutativeHash(clause.begin, clause.size));
+	_produced_cls_ofs[solverId] 
+		<< Timer::elapsedSeconds() << " "
+		<< Mallob::nonCommutativeHash(clause.begin, clause.size) << " " 
+		<< clause.toStr() << " " 
+		<< clause.lbd << " " 
+		<< clause.size << std::endl; 
+	//LOGGER(_logger, V2_INFO, "PRODUCED %i %i\n", solverId, Mallob::commutativeHash(clause.begin, clause.size));
 	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
 
 	if (tldClauseVec) delete tldClauseVec;
@@ -493,4 +501,8 @@ void SharingManager::continueClauseImport(int solverId) {
 	_solver_stats[solverId] = &_solvers[solverId]->getSolverStatsRef();
 }
 
-SharingManager::~SharingManager() {}
+SharingManager::~SharingManager() {
+	for(auto& produced_clauses_of : _produced_cls_ofs) {
+		produced_clauses_of.close();
+	}
+}

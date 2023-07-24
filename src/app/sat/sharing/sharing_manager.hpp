@@ -30,6 +30,9 @@ protected:
 	
 	std::vector<int> _solver_revisions;
 
+	// file streams to output produced
+	std::vector<std::ofstream> _produced_cls_ofs;
+
 	SolverStatistics _returned_clauses_stats;
 
 	// clause importing / digestion
