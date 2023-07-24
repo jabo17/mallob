@@ -58,7 +58,7 @@ timeout=300
 startinstance=1
 
 # TODO Base log directory; use a descriptive name for each experiment. No spaces.
-baselogdir="myexperiment"
+baselogdir="cls-diversitiy-exp1"
 
 # TODO Add any further options to the name of this log directory as well.
 # Results from older experiments with the same sublogdir will be overwritten!
@@ -160,6 +160,62 @@ if [ "$1" == "--extract" ]; then
     echo "Experiments on $((i-1)) instances found."
     echo "$((nsat+nunsat)) solved ($nsat sat, $nunsat unsat), PAR-2 score: $(echo "$par2sum / (${i}-1)"|bc -l)"
     exit 0
+fi
+
+# Extract Hash Values Of Produced Clauses
+if [ "$1" == "--extract-produced-cls" ]; then
+	shift 1
+	if [ -z $1 ]; then
+		echo "Provide a results directory."
+		exit 1
+	fi
+
+	out_file=$1/overlap_stat.csv
+	> $out_file
+	echo "i dup amount rel" >> $out_file
+
+	i=1
+	while [ -d "$1/$i" ]; do
+		
+		if [ -f STOP_IMMEDIATELY ]; then
+			# Signal to stop
+			echo "Stopping because STOP_MMEDIATELY is present"
+			exit
+		fi
+
+		# Log files to parse
+		dir="$1/$i"
+		logfile="$dir/OUT"
+
+		# get approx. cls of each solver and remove some noise in the output
+		less $logfile|grep "PRODUCED"|awk '{print $1,$5,$7}'|grep "c PRODUCED"|awk '{print $3}'| sort -n > "$dir/cls_produced.tmp"
+
+		dup=$(uniq -D "$dir/cls_produced.tmp"|wc -l)
+		amount=$(less "$dir/cls_produced.tmp"|wc -l)
+	
+		rel=$(echo "scale=4;${dup}/${amount}"|bc)
+		echo "$i $dup ${amount} $rel"
+		echo "$i $dup ${amount} $rel" >> "$out_file"
+
+
+		#while IFS= read -r line; do
+		#	solver=$(echo $line|awk '{$1}')
+		#	hash=$(echo $line|awk '{$2}')
+		#	echo $hash >> "${dir}/cls_produced_hashes.$solver.txt"
+		#done <<< "$cls_produced"
+		
+		#for file in $dir/cls_produced_hashes*; do
+		#	file_path = "$dir/$file"
+		#	echo $file_path
+		#	cat $file_path|sort -n > $file_path
+		#	
+		#done
+
+
+		i=$((i+1))
+	done
+
+	exit 0
 fi
 
 # Set $1 to benchmarks file
