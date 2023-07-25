@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <unistd.h>
 
+#include "comm/mympi.hpp"
 #include "app/sat/sharing/filter/generic_clause_filter.hpp"
 #include "app/sat/sharing/store/generic_clause_store.hpp"
 #include "app/sat/sharing/store/static_clause_store_by_lbd.hpp"
@@ -113,7 +114,7 @@ SharingManager::SharingManager(
 		_solver_revisions.push_back(_solvers[i]->getSolverSetup().solverRevision);
 		_solver_stats.push_back(&_solvers[i]->getSolverStatsRef());
 
-		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
+		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(MyMpi::rank(MPI_COMM_WORLD)) + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
 	}
 
 	if (_params.deterministicSolving()) {
@@ -205,7 +206,8 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	_produced_cls_ofs[solverId] 
 		<< Timer::elapsedSeconds() << " "
 		<< Mallob::nonCommutativeHash(clause.begin, clause.size) << " " 
-		<< clause.toStr() << std::endl; 
+		<< clause.size << " "
+		<< clause.lbd << std::endl;
 	//LOGGER(_logger, V2_INFO, "PRODUCED %i %i\n", solverId, Mallob::commutativeHash(clause.begin, clause.size));
 	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
 
