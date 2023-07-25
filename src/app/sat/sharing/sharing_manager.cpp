@@ -114,7 +114,7 @@ SharingManager::SharingManager(
 		_solver_revisions.push_back(_solvers[i]->getSolverSetup().solverRevision);
 		_solver_stats.push_back(&_solvers[i]->getSolverStatsRef());
 
-		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(MyMpi::rank(MPI_COMM_WORLD)) + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
+		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(Process::_rank) + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
 	}
 
 	if (_params.deterministicSolving()) {
