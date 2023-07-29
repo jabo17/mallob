@@ -36,7 +36,7 @@ nhwthreadsperproc=32
 
 # Some environment variables for Mallob
 RDMAV_FORK_SAFE=1
-NPROCS="$(($(nproc)/2*$nhwthreadsperproc))" 
+NPROCS="$(($(nproc)/2/$nhwthreadsperproc))" 
 PATH="build:$PATH"
 
 # TODO Set the portfolio of solvers to cycle through
@@ -58,7 +58,7 @@ timeout=300
 startinstance=1
 
 # TODO Base log directory; use a descriptive name for each experiment. No spaces.
-baselogdir="cls-diversitiy-exp1"
+baselogdir="/workspace/borowitz/cls-diversitiy-exp2-138"
 
 # TODO Add any further options to the name of this log directory as well.
 # Results from older experiments with the same sublogdir will be overwritten!
@@ -176,10 +176,45 @@ if [ "$1" == "--extract-produced-cls" ]; then
 		exit 1
 	fi
 
-	out_file=$1/overlap_stat.csv
-	> $out_file
-	echo "i dup amount rel" >> $out_file
+	rm "eval_jobs.txt"
 
+	min_i=115
+	i=$min_i
+	while [ -d "$1/$i" ]; do
+		dir="$1/$i"
+                tmp_file2="$dir/cls_produced2.tmp"
+                tmp_file="$dir/cls_produced.tmp"
+		rm $tmp_file2
+		rm $tmp_file
+		
+		job=""
+		j=0
+		while [ -d "$dir/$j" ]; do
+			for s in $dir/$j/produced_cls.*.log; do
+				tmp=${s#*produced_cls.}
+				solver=${tmp%.log}
+				if [ ! -z "$job" ]; then
+					job="${job}; "
+				fi
+				job="${job}cat $s|awk '{print \$0,\"$j ${solver}\"}' >> $tmp_file" # rm $dir/$j/produced_cls.$s.log"		
+			done
+			j=$(($j+1))
+		done
+		if [ ! -z "job" ]; then
+			job="${job}; "
+		fi
+		job="${job}sort -k2n -o $tmp_file2 $tmp_file; rm $tmp_file";
+
+		echo "$job; echo \"Sorted Produced Clauses Of $dir\"" >> "eval_jobs.txt"
+
+		i=$(($i+1))
+	done
+	parallel -j 10 < "eval_jobs.txt"
+	exit 0
+fi
+
+# Do statistics with the produced clauses
+if [ "$1" == "--eval-produced-cls" ]; then
 	i=1
 	while [ -d "$1/$i" ]; do
 		
@@ -189,34 +224,15 @@ if [ "$1" == "--extract-produced-cls" ]; then
 			exit
 		fi
 
-		# Log files to parse
-		dir="$1/$i"
-		logfile="$dir/OUT"
+                tmp_file2="$dir/cls_produced2.tmp"
+                stat_dup_ratios="stat_dup_ratios.tmp"
 
-		# get approx. cls of each solver and remove some noise in the output
-		less $logfile|grep "PRODUCED"|awk '{print $1,$5,$7}'|grep "c PRODUCED"|awk '{print $3}'| sort -n > "$dir/cls_produced.tmp"
-
-		dup=$(uniq -D "$dir/cls_produced.tmp"|wc -l)
-		amount=$(less "$dir/cls_produced.tmp"|wc -l)
-	
-		rel=$(echo "scale=4;${dup}/${amount}"|bc)
-		echo "$i $dup ${amount} $rel"
-		echo "$i $dup ${amount} $rel" >> "$out_file"
-
-
-		#while IFS= read -r line; do
-		#	solver=$(echo $line|awk '{$1}')
-		#	hash=$(echo $line|awk '{$2}')
-		#	echo $hash >> "${dir}/cls_produced_hashes.$solver.txt"
-		#done <<< "$cls_produced"
-		
-		#for file in $dir/cls_produced_hashes*; do
-		#	file_path = "$dir/$file"
-		#	echo $file_path
-		#	cat $file_path|sort -n > $file_path
-		#	
-		#done
-
+                dup=$(cat $tmp_file2|awk '{print $2}'|uniq -cd |awk '{sum+=$1;} END{print sum-NR;}')
+                amount=$(cat $tmp_file2|wc -l)
+                rel=$(echo "scale=6;$dup/$amount"|bc)
+                echo "$i $dup $amount $rel"
+                echo "$i $dup $amount $rel">> $stat_dup_ratios
+                #cat $tmp_file2|awk 'BEGIN{str=""} {if(str==$2) {print $2;}; str=$1}'|sort -n > $time_of_dup
 
 		i=$((i+1))
 	done
