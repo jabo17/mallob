@@ -34,7 +34,7 @@ if [ "$1" == "--extract-exp" ]; then
 	parallel -j 10 < $job_file
 fi
 
-if [ "$1" == "--extract-exp-inst" ]; do
+if [ "$1" == "--extract-exp-inst" ]; then
 	shift 1
 
 	inst_dir=$1
@@ -45,12 +45,12 @@ if [ "$1" == "--extract-exp-inst" ]; do
 	fi
 
 
-	agg_file_sorted="$inst_dir/cls_produced_sorted.tmp"
-	agg_file="$inst_dir/cls_produced.tmp"
+	agg_file_sorted="$inst_dir/cls_produced_sorted.txt"
+	agg_file="$inst_dir/cls_produced.txt"
 	rm $agg_file
 
 	p=0 # process
-	while [ -d "$inst_dir/$p"]; do
+	while [ -d "$inst_dir/$p" ]; do
 		for log_path in $inst_dir/$p/produced_cls.*.log; do
 			solver=${log_path#produced_cls.}
 			solver=${solver%.log}
@@ -61,7 +61,7 @@ if [ "$1" == "--extract-exp-inst" ]; do
 	done
 
 	#sort aggregated file
-	if [ -f $agg_file ]; do
+	if [ -f $agg_file ]; then
 		rm $agg_file_sorted
 		sort -k2n -k1n -o $agg_file_sorted $agg_file
 		status=$? # exit status of sort
@@ -78,7 +78,7 @@ if [ "$1" == "--extract-exp-inst" ]; do
 	if [ -f $agg_file_sorted ]; then
 		# delete single logs
 		p=0 # process
-		while [ -d "$inst_dir/$p"]; do
+		while [ -d "$inst_dir/$p" ]; do
 			for log_path in $inst_dir/$p/produced_cls.*.log; do
 				rm $log_path
 			done
