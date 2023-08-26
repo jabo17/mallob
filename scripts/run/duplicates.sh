@@ -35,6 +35,10 @@ if [ "$1" == "--extract-exp" ]; then
 fi
 
 if [ "$1" == "--extract-exp-inst" ]; then
+	#
+	# Given an instance it aggregates the solver-specific logs with produced clauses
+	# and sorts them by hash (first, numeric, <), time (second, numeric, <)  
+	#
 	shift 1
 
 	inst_dir=$1
@@ -52,7 +56,7 @@ if [ "$1" == "--extract-exp-inst" ]; then
 	p=0 # process
 	while [ -d "$inst_dir/$p" ]; do
 		for log_path in $inst_dir/$p/produced_cls.*.log; do
-			solver=${log_path#produced_cls.}
+			solver=${log_path#*produced_cls.}
 			solver=${solver%.log}
 
 			cat $log_path|awk -v p="$p" -v s="$solver" '{print $0,p,s}' >> $agg_file
@@ -85,6 +89,30 @@ if [ "$1" == "--extract-exp-inst" ]; then
 			p=$(($p+1))
 		done
 	fi
+fi
+
+if [ "$1" == "--eval" ]; then
+	#
+	# Evaluate extracted produced clauses (sorted by hash,time) 
+	#
+	shift 1
+
+	$inst_dir=$1
+
+	if [ -z $inst_dir ]; then
+		echo "Provide a instance results directory."
+		exit 1
+	fi
+
+	agg_file_sorted="$inst_dir/cls_produced_sorted.txt"
+
+	if [ ! -f $agg_file_sorted ]; then
+		echo "Did not found $agg_file_sorted"
+		exit 1
+	fi
+
+	
+
 fi
 
 
