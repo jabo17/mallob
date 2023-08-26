@@ -30,7 +30,7 @@ if [ "$1" == "--extract-exp" ]; then
 
 		echo "bash scripts/run/duplicates.sh --extract-exp-inst $dir/$inst" >> $job_file
 		
-		$inst=$(($inst+1))
+		inst=$(($inst+1))
 	done
 	parallel -j 10 < $job_file
 fi
