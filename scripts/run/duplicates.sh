@@ -1,6 +1,95 @@
 #!/bin/bash
 
 
+if [ "$1" == "--extract-exp" ]; then
+	#
+	# For each instance it aggregates the solver-specific logs with produced clauses
+	# and sorts them by hash (first, numeric, <), time (second, numeric, <)  
+	#
+	shift 1
+
+	if [ -z $1 ]; then
+		echo "Provide a results directory."
+		exit 1
+	fi
+
+	job_file="extract_jobs.txt"
+	rm $job_file
+
+	dir="$1"
+	start_inst=1
+
+	inst=$start_inst
+	while [ -d "$dir/$inst" ]; do # for each instance
+
+		if [ -f STOP_IMMEDIATELY ]; then
+			# Signal to stop
+			echo "Stopping because STOP_MMEDIATELY is present"
+			exit
+		fi
+
+		echo "bash scripts/run/duplicates.sh --extract-exp-inst $dir/$inst" >> $job_file
+
+	done
+	parallel -j 10 < $job_file
+fi
+
+if [ "$1" == "--extract-exp-inst" ]; do
+	shift 1
+
+	inst_dir=$1
+
+	if [ -z $inst_dir ]; then
+		echo "Provide a instance results directory."
+		exit 1
+	fi
+
+
+	agg_file_sorted="$inst_dir/cls_produced_sorted.tmp"
+	agg_file="$inst_dir/cls_produced.tmp"
+	rm $agg_file
+
+	p=0 # process
+	while [ -d "$inst_dir/$p"]; do
+		for log_path in $inst_dir/$p/produced_cls.*.log; do
+			solver=${log_path#produced_cls.}
+			solver=${solver%.log}
+
+			cat $log_path|awk -v p="$p" -v s="$solver" '{print $0,p,s}' >> $agg_file
+		done
+		p=$(($p+1))
+	done
+
+	#sort aggregated file
+	if [ -f $agg_file ]; do
+		rm $agg_file_sorted
+		sort -k2n -k1n -o $agg_file_sorted $agg_file
+		status=$? # exit status of sort
+
+		if [ $status -eq 0 ]; then 
+			rm $agg_file
+		else
+			echo "Sort failed for $inst_dir"
+			exit 1
+		fi
+	fi
+
+
+	if [ -f $agg_file_sorted ]; then
+		# delete single logs
+		p=0 # process
+		while [ -d "$inst_dir/$p"]; do
+			for log_path in $inst_dir/$p/produced_cls.*.log; do
+				rm $log_path
+			done
+			p=$(($p+1))
+		done
+	fi
+fi
+
+
+
+
 if [ "$1" == "--extract" ]; then
 	shift 1
 
