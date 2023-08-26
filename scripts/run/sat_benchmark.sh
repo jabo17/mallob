@@ -178,7 +178,7 @@ if [ "$1" == "--extract-produced-cls" ]; then
 
 	rm "eval_jobs.txt"
 
-	min_i=115
+	min_i=1
 	i=$min_i
 	while [ -d "$1/$i" ]; do
 		dir="$1/$i"
@@ -203,7 +203,8 @@ if [ "$1" == "--extract-produced-cls" ]; then
 		if [ ! -z "job" ]; then
 			job="${job}; "
 		fi
-		job="${job}sort -k2n -o $tmp_file2 $tmp_file; rm $tmp_file";
+		job="${job}sort -k2n -k1n -o $tmp_file2 $tmp_file; rm $tmp_file"
+		job="${job}; bash scripts/run/duplicates.sh --extract $dir && bash scripts/run/duplicates.sh --time-extract $dir  && rm $tmp_file2"
 
 		echo "$job; echo \"Sorted Produced Clauses Of $dir\"" >> "eval_jobs.txt"
 
@@ -213,9 +214,31 @@ if [ "$1" == "--extract-produced-cls" ]; then
 	exit 0
 fi
 
-# Do statistics with the produced clauses
-if [ "$1" == "--eval-produced-cls" ]; then
-	i=1
+# Extract Pairwise Solver Hash Overlap
+if [ "$1" == "--eval-pw-produced-cls" ]; then
+	shift 1
+	if [ -z $1 ]; then
+		echo "Provide a results directory."
+		exit 1
+	fi
+
+	rm "eval_jobs.txt"
+
+	min_i=1
+	i=$min_i
+	while [ -d "$1/$i" ]; do
+		dir="$1/$i"
+                job="bash scripts/run/duplicates.sh --pw-extract $dir"
+
+		echo "$job; echo \"Sorted Produced Clauses Of $dir\"" >> "eval_jobs.txt"
+
+		i=$(($i+1))
+	done
+	parallel -j 10 < "eval_jobs.txt"
+
+	i=min_i
+	stats="$1/pw_stat.out"
+	rm $stats
 	while [ -d "$1/$i" ]; do
 		
 		if [ -f STOP_IMMEDIATELY ]; then
@@ -224,19 +247,80 @@ if [ "$1" == "--eval-produced-cls" ]; then
 			exit
 		fi
 
-                tmp_file2="$dir/cls_produced2.tmp"
-                stat_dup_ratios="stat_dup_ratios.tmp"
+                stat="$1/$i/pw_stat.out"
 
-                dup=$(cat $tmp_file2|awk '{print $2}'|uniq -cd |awk '{sum+=$1;} END{print sum-NR;}')
-                amount=$(cat $tmp_file2|wc -l)
-                rel=$(echo "scale=6;$dup/$amount"|bc)
-                echo "$i $dup $amount $rel"
-                echo "$i $dup $amount $rel">> $stat_dup_ratios
-                #cat $tmp_file2|awk 'BEGIN{str=""} {if(str==$2) {print $2;}; str=$1}'|sort -n > $time_of_dup
+		cat $stat >> $stats
 
 		i=$((i+1))
 	done
+	exit 0
+fi
 
+# Extract Pairwise Solver Hash Overlap
+if [ "$1" == "--extract-time-produced-cls" ]; then
+	shift 1
+	if [ -z $1 ]; then
+		echo "Provide a results directory."
+		exit 1
+	fi
+
+	rm "eval_jobs.txt"
+
+	min_i=1
+	i=$min_i
+	while [ -d "$1/$i" ]; do
+		dir="$1/$i"
+                job="bash scripts/run/duplicates.sh --time-extract $dir"
+
+		echo "$job; echo \"Sorted Produced Clauses Of $dir\"" >> "eval_jobs.txt"
+
+		i=$(($i+1))
+	done
+	parallel -j 10 < "eval_jobs.txt"
+
+	i=min_i
+	stats="$1/pw_stat.out"
+	rm $stats
+	while [ -d "$1/$i" ]; do
+		
+		if [ -f STOP_IMMEDIATELY ]; then
+			# Signal to stop
+			echo "Stopping because STOP_MMEDIATELY is present"
+			exit
+		fi
+
+                stat="$1/$i/pw_stat.out"
+
+		cat $stat >> $stats
+
+		i=$((i+1))
+	done
+	exit 0
+fi
+
+
+# Do statistics with the produced clauses
+if [ "$1" == "--eval-produced-cls" ]; then
+	shift 1;
+	i=1
+
+	stats_dup="$1/stat.out"
+	rm $stats_dup
+	while [ -d "$1/$i" ]; do
+		
+		if [ -f STOP_IMMEDIATELY ]; then
+			# Signal to stop
+			echo "Stopping because STOP_MMEDIATELY is present"
+			exit
+		fi
+
+                stat_dup="$1/$i/stat.out"
+
+		cat $stat_dup >> $stats_dup
+
+		i=$((i+1))
+	done
+	
 	exit 0
 fi
 
