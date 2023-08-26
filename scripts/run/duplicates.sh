@@ -29,7 +29,8 @@ if [ "$1" == "--extract-exp" ]; then
 		fi
 
 		echo "bash scripts/run/duplicates.sh --extract-exp-inst $dir/$inst" >> $job_file
-
+		
+		$inst=$(($inst+1))
 	done
 	parallel -j 10 < $job_file
 fi
@@ -91,7 +92,7 @@ if [ "$1" == "--extract-exp-inst" ]; then
 	fi
 fi
 
-if [ "$1" == "--eval" ]; then
+if [ "$1" == "--eval-inst" ]; then
 	#
 	# Evaluate extracted produced clauses (sorted by hash,time) 
 	#
@@ -107,11 +108,30 @@ if [ "$1" == "--eval" ]; then
 	agg_file_sorted="$inst_dir/cls_produced_sorted.txt"
 
 	if [ ! -f $agg_file_sorted ]; then
-		echo "Did not found $agg_file_sorted"
+		echo "Stopping because $agg_file_sorted does not exist"
 		exit 1
 	fi
 
-	
+	# hash founds
+	hash_reports=$(cat $agg_file_sorted|wc -l)
+
+	# OVERALL SOLVER
+
+	# reports=hash reports, 
+	# NR=unique hashes that were reported, 
+	# sum-NR=reports with known hash, 
+	# dup_hashes=unique hashes that were reported at least twice
+	cat $agg_file_sorted|awk 'print {$2}'|uniq -c|awk -v reports="$hash_reports" \
+	'{sum+=$1; if ($1>1) { dup_hashes+=1}} END{print reports,NR,sum-NR,dup_hashes}' 
+
+	# time series of reports with hashes that were reported at least twice
+	# printing time of first report of hash,report time
+	time_series_file = "$inst_dir/cls_time_series.txt"
+	cat $agg_file_sorted|awk 'BEGIN{first_t=0;last_h=""} {if (last_h == $2) {print first_t,$0;} else {first_t=$1;last_h=$2;}}' >> $time_series_file
+
+	# PAIRWISE
+
+
 
 fi
 
