@@ -88,6 +88,7 @@ if [ "$1" == "--extract-exp-inst" ]; then
 		# eval experiment
 		bash scripts/run/duplicates.sh --eval-inst $inst_dir
 
+		# compress agg sorted cls
 		tar -czvf "$agg_sorted_zip" -C $inst_dir "$agg_filename_sorted"
 		status=$?
 
