@@ -32,7 +32,7 @@ if [ "$1" == "--extract-exp" ]; then
 		
 		inst=$(($inst+1))
 	done
-	parallel -j 10 < $job_file
+	parallel -j 10 --tmpdir=/home/borowitz/sat/mallob/tmp  < $job_file
 fi
 
 if [ "$1" == "--extract-exp-inst" ]; then
@@ -49,8 +49,15 @@ if [ "$1" == "--extract-exp-inst" ]; then
 		exit 1
 	fi
 
+	if [ -f "$inst_dir/FINISHED_EXTRACT" ]; then
+		echo "Skipping extraction for $inst_dir because FINISHED_EXTRACT was found."
+		echo "Remove the file and re-run the script if you explicity want to do so."
+		exit 1
+	fi
 
-	agg_file_sorted="$inst_dir/cls_produced_sorted.txt"
+	agg_filename_sorted="cls_produced_sorted.txt"
+	agg_file_sorted="$inst_dir/$agg_filename_sorted"
+	agg_sorted_zip="$inst_dir/cls_produced_sorted.tar.gz"
 	agg_file="$inst_dir/cls_produced.txt"
 	rm $agg_file
 
@@ -74,11 +81,26 @@ if [ "$1" == "--extract-exp-inst" ]; then
 		if [ $status -eq 0 ]; then 
 			rm $agg_file
 		else
-			echo "Sort failed for $inst_dir"
+			echo "Sort failed for $agg_file"
 			exit 1
 		fi
+
+		# eval experiment
+		bash scripts/run/duplicates.sh --eval-inst $inst_dir
+
+		tar -czvf "$agg_sorted_zip" -C $inst_dir "$agg_filename_sorted"
+		status=$?
+
+		if [ $status -eq 0 ]; then 
+			rm $agg_file_sorted
+		else
+			echo "Tar failed for $agg_file_sorted"
+			exit 1
+		fi
+
 	fi
 
+	touch "$inst_dir/FINISHED_EXTRACT"
 
 	if [ -f $agg_file_sorted ]; then
 		# delete single logs
@@ -106,10 +128,18 @@ if [ "$1" == "--eval-inst" ]; then
 	fi
 
 	agg_file_sorted="$inst_dir/cls_produced_sorted.txt"
+	agg_sorted_zip="$inst_dir/cls_produced_sorted.tar.gz"
 
 	if [ ! -f $agg_file_sorted ]; then
-		echo "Stopping because $agg_file_sorted does not exist"
-		exit 1
+		# check if the compressed version does exist
+		if [ -f $agg_sorted_zip ]; then
+			tar -xvf $agg_sorted_zip -C $inst_dir
+
+			if [ ! -f $agg_file_sorted ]; then
+				echo "Stopping because $agg_file_sorted does not exist"
+				exit 1
+			fi
+		fi
 	fi
 
 	# hash founds
