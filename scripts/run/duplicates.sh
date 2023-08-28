@@ -114,6 +114,40 @@ if [ "$1" == "--extract-exp-inst" ]; then
 	fi
 fi
 
+if [ "$1" == "--eval-exp" ]; then
+	#
+	# For each instance it aggregates the solver-specific logs with produced clauses
+	# and sorts them by hash (first, numeric, <), time (second, numeric, <)  
+	#
+	shift 1
+
+	if [ -z $1 ]; then
+		echo "Provide a results directory."
+		exit 1
+	fi
+
+	job_file="eval_jobs.txt"
+	rm $job_file
+
+	dir="$1"
+	start_inst=1
+
+	inst=$start_inst
+	while [ -d "$dir/$inst" ]; do # for each instance
+
+		if [ -f STOP_IMMEDIATELY ]; then
+			# Signal to stop
+			echo "Stopping because STOP_MMEDIATELY is present"
+			exit
+		fi
+
+		echo "bash scripts/run/duplicates.sh --eval-inst $dir/$inst" >> $job_file
+		
+		inst=$(($inst+1))
+	done
+	parallel -j 10 < $job_file
+fi
+
 if [ "$1" == "--eval-inst" ]; then
 	#
 	# Evaluate extracted produced clauses (sorted by hash,time) 
@@ -142,17 +176,15 @@ if [ "$1" == "--eval-inst" ]; then
 		fi
 	fi
 
-	# hash founds
-	hash_reports=$(cat $agg_file_sorted|wc -l)
-
 	# OVERALL SOLVER
-
+	dup_stat_file="dup_stat.txt"
 	# reports=hash reports, 
 	# NR=unique hashes that were reported, 
 	# sum-NR=reports with known hash, 
 	# dup_hashes=unique hashes that were reported at least twice
+	hash_reports=$(cat $agg_file_sorted|wc -l)
 	cat $agg_file_sorted|awk 'print {$2}'|uniq -c|awk -v reports="$hash_reports" \
-	'{sum+=$1; if ($1>1) { dup_hashes+=1}} END{print reports,NR,sum-NR,dup_hashes}' 
+	'{sum+=$1; if ($1>1) { dup_hashes+=1}} END{print reports,NR,sum-NR,dup_hashes}' >> $dup_stat_file
 
 	# time series of reports with hashes that were reported at least twice
 	# printing time of first report of hash,report time
@@ -160,9 +192,8 @@ if [ "$1" == "--eval-inst" ]; then
 	cat $agg_file_sorted|awk 'BEGIN{first_t=0;last_h=""} {if (last_h == $2) {print first_t,$0;} else {first_t=$1;last_h=$2;}}' >> $time_series_file
 
 	# PAIRWISE
-
-
-
+	pw_dup_file="$inst_dir/pw_dup.txt"
+	python3 scripts/run/pw_duplicates.py --extract-pw-inst "$agg_file_sorted" >> $pw_dup_file
 fi
 
 
