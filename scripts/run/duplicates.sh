@@ -35,6 +35,51 @@ if [ "$1" == "--extract-exp" ]; then
 	parallel -j 10 --tmpdir=/home/borowitz/sat/mallob/tmp  < $job_file
 fi
 
+if [ "$1" == "--clean-exp-inst" ]; then
+	#
+	# Removes produced clause files except for the archive.
+	# Fails if FINISHED_EXTRACT file is not found.
+	#
+	shift 1
+
+	inst_dir=$1
+
+	if [ -z $inst_dir ]; then
+		echo "Provide a instance results directory."
+		exit 1
+	fi
+
+	if [ ! -f "$inst_dir/FINISHED_EXTRACT" ]; then
+		echo "Skipping extraction for $inst_dir because FINISHED_EXTRACT was not found."
+		echo "Add the file and re-run the script if you explicity want to do so."
+		exit 1
+	fi
+
+	agg_filename_sorted="cls_produced_sorted.txt"
+	agg_file_sorted="$inst_dir/$agg_filename_sorted"
+	agg_sorted_zip="$inst_dir/cls_produced_sorted.tar.gz"
+	agg_file="$inst_dir/cls_produced.txt"
+	
+	if [ -f $agg_file ]; then
+		rm $agg_file
+	fi
+
+	p=0 # process
+
+	if [ -f $agg_file_sorted ]; then
+		rm $agg_file_sorted
+	fi
+	
+	# delete single logs
+	p=0 # process
+	while [ -d "$inst_dir/$p" ]; do
+		for log_path in $inst_dir/$p/produced_cls.*.log; do
+			rm $log_path
+		done
+		p=$(($p+1))
+	done
+fi
+
 if [ "$1" == "--extract-exp-inst" ]; then
 	#
 	# Given an instance it aggregates the solver-specific logs with produced clauses
@@ -86,10 +131,10 @@ if [ "$1" == "--extract-exp-inst" ]; then
 		fi
 
 		# eval experiment
-		bash scripts/run/duplicates.sh --eval-inst $inst_dir
+		bash scripts/run/duplicates.sh --eval-inst "$inst_dir"
 
 		# compress agg sorted cls
-		tar -czvf "$agg_sorted_zip" -C $inst_dir "$agg_filename_sorted"
+		tar -czvf "$agg_sorted_zip" -C "$inst_dir" "$agg_filename_sorted"
 		status=$?
 
 		if [ $status -eq 0 ]; then 
@@ -146,7 +191,7 @@ if [ "$1" == "--eval-exp" ]; then
 		
 		inst=$(($inst+1))
 	done
-	parallel -j 10 < $job_file
+	parallel -j 5 --tmpdir=/home/borowitz/sat/mallob/tmp < $job_file
 fi
 
 if [ "$1" == "--eval-inst" ]; then
@@ -155,7 +200,7 @@ if [ "$1" == "--eval-inst" ]; then
 	#
 	shift 1
 
-	$inst_dir=$1
+	inst_dir=$1
 
 	if [ -z $inst_dir ]; then
 		echo "Provide a instance results directory."
@@ -178,27 +223,63 @@ if [ "$1" == "--eval-inst" ]; then
 	fi
 
 	# OVERALL SOLVER
-	dup_stat_file="dup_stat.txt"
+	dup_stat_file="$inst_dir/dup_stat.txt"
 	# reports=hash reports, 
 	# NR=unique hashes that were reported, 
 	# sum-NR=reports with known hash, 
 	# dup_hashes=unique hashes that were reported at least twice
 	hash_reports=$(cat $agg_file_sorted|wc -l)
-	cat $agg_file_sorted|awk 'print {$2}'|uniq -c|awk -v reports="$hash_reports" \
-	'{sum+=$1; if ($1>1) { dup_hashes+=1}} END{print reports,NR,sum-NR,dup_hashes}' >> $dup_stat_file
+	cat $agg_file_sorted|awk '{print $2}'|uniq -c|awk -v reports="$hash_reports" \
+	'{sum+=$1; if ($1>1) { dup_hashes+=1}} END{print reports,NR,sum-NR,dup_hashes}' > $dup_stat_file
 
 	# time series of reports with hashes that were reported at least twice
-	# printing time of first report of hash,report time
-	time_series_file = "$inst_dir/cls_time_series.txt"
-	cat $agg_file_sorted|awk 'BEGIN{first_t=0;last_h=""} {if (last_h == $2) {print first_t,$0;} else {first_t=$1;last_h=$2;}}' >> $time_series_file
+	# printing time of first report time
+	time_series_file="$inst_dir/cls_time_series.txt"
+	cat $agg_file_sorted|awk 'BEGIN{last_h=""} {if (last_h == $2) {print $1;} else {last_h=$2;}}'|sort -k1n > $time_series_file
+	# printing time of report time-first report time
+	time_series_rel_file="$inst_dir/cls_time_series_rel.txt"
+	cat $agg_file_sorted|awk 'BEGIN{first_t=0;last_h=""} {if (last_h == $2) {print $1-first_t;} else {first_t=$1;last_h=$2;}}'|sort -k1n > $time_series_rel_file
 
 	# PAIRWISE
+	filtered_agg_file_sorted="$inst_dir/filtered_produced_sorted.txt"
 	pw_dup_file="$inst_dir/pw_dup.txt"
-	python3 scripts/run/pw_duplicates.py --extract-pw-inst "$agg_file_sorted" >> $pw_dup_file
+	# keep only hash, process, solver, then sort the lines and keep lines that appear at least twice
+	# we do so as we count only duplicate hashes between solvers, and do not count how often a solver reported a hash
+	cat $agg_file_sorted|awk '{print $2,$5,$6}'|sort|uniq -cd|awk '{print $2,$3,$4}' > $filtered_agg_file_sorted
+	python3 scripts/run/pw_duplicates.py --extract-pw-inst "$filtered_agg_file_sorted" > $pw_dup_file
 fi
 
 
+if [ "$1" == "--eval-global" ]; then
+	#
+	# Make sure you called --eval-inst for every experiment before.
+	# This script gathers and evaluates your experiment over all instances
+	#
+	shift 1
+	
+	dir=$1
 
+	if [ -z $dir ]; then
+		echo "Provide a results directory."
+		exit 1
+	fi
+	
+	dup_stat="$dir/dup_stat.txt"
+	rm $dup_stat
+
+	inst=1
+	while [ -d "$dir/$inst" ]; do	
+		if [ -f "$dir/$inst/dup_stat.txt" ]; then
+			res=$(cat "$dir/$inst/dup_stat.txt")
+			echo "$inst $res"
+		       	echo "$inst $res" >> $dup_stat
+		fi
+		inst=$(($inst+1))
+	done
+
+	res=$(cat $dup_stat|awk 'BEGIN {log_sum_dup_reports=0;log_sum_dup_hashes=0} {log_sum_dup_reports+=log($4/$2);log_sum_dup_hashes+=log($5/$3)} END {print exp(1/NR * log_sum_dup_reports), exp(1/NR * log_sum_dup_hashes);}')
+	echo $res
+fi
 
 if [ "$1" == "--extract" ]; then
 	shift 1
