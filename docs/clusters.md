@@ -21,6 +21,7 @@ Also fetch and/or copy any additional files you require on the cluster, such as 
 
 If you are done with the `cluster` directory, do not forget to unmount:
 
+    chmod +x /home/username # make sure the parent directory of cluster is executable
     fusermount -u cluster
 
 ## Building Mallob
