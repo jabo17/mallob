@@ -187,7 +187,7 @@ SatEngine::SatEngine(const Parameters& params, const SatProcessConfig& config, L
 	}
 
 	_sharing_manager.reset(new SharingManager(_solver_interfaces, _params, _logger, 
-		/*max. deferred literals per solver=*/5*config.maxBroadcastedLitsPerCycle, config.apprank));
+		/*max. deferred literals per solver=*/5*config.maxBroadcastedLitsPerCycle, config.apprank, config.jobid));
 	LOGGER(_logger, V5_DEBG, "initialized\n");
 }
 
