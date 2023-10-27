@@ -37,8 +37,8 @@
 
 SharingManager::SharingManager(
 		std::vector<std::shared_ptr<PortfolioSolverInterface>>& solvers, 
-		const Parameters& params, const Logger& logger, size_t maxDeferredLitsPerSolver, int jobIndex)
-	: _solvers(solvers), _params(params), _logger(logger), _job_index(jobIndex),
+		const Parameters& params, const Logger& logger, size_t maxDeferredLitsPerSolver, int jobIndex, int formulaJobIndex)
+	: _solvers(solvers), _params(params), _logger(logger), _job_index(jobIndex), _formula_job_index(formulaJobIndex),
 	_clause_store([&]() -> GenericClauseStore* {
 		bool resetLbdAtExport = _params.resetLbd() == MALLOB_RESET_LBD_AT_EXPORT;
 		int staticBucketSize = (2*_params.clauseBufferBaseSize())/3;
@@ -113,7 +113,7 @@ SharingManager::SharingManager(
 		_solver_revisions.push_back(_solvers[i]->getSolverSetup().solverRevision);
 		_solver_stats.push_back(&_solvers[i]->getSolverStatsRef());
 
-		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(Process::_rank) + "/" + std::to_string(_job_index) + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
+		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(Process::_rank) + "/" + std::to_string(_formula_job_index) + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
 	}
 
 	if (_params.deterministicSolving()) {

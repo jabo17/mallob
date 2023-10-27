@@ -51,6 +51,7 @@ protected:
 	const Parameters& _params;
 	const Logger& _logger;
 	int _job_index;
+	int _formula_job_index;
 
 	std::unique_ptr<GenericClauseStore> _clause_store;
 	std::unique_ptr<GenericClauseFilter> _clause_filter;
@@ -92,7 +93,7 @@ protected:
 public:
 	SharingManager(std::vector<std::shared_ptr<PortfolioSolverInterface>>& solvers,
 			const Parameters& params, const Logger& logger, size_t maxDeferredLitsPerSolver,
-			int jobIndex);
+			int jobIndex, int formulaJobIndex);
 	~SharingManager();
 
 	void setAllocatedSharingBufferSize(int allocatedSize) {_allocated_sharing_buffer_size = allocatedSize;}
