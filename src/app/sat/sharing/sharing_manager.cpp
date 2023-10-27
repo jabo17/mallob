@@ -112,6 +112,8 @@ SharingManager::SharingManager(
 		});
 		_solver_revisions.push_back(_solvers[i]->getSolverSetup().solverRevision);
 		_solver_stats.push_back(&_solvers[i]->getSolverStatsRef());
+
+		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(Process::_rank) + "/produced_cls." + std::to_string(i) + ".log", std::ios_base::out));
 	}
 
 	if (_params.deterministicSolving()) {
@@ -203,6 +205,16 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 
 	_export_buffer->produce(clauseBegin, clauseSize, clauseLbd, solverId, _internal_epoch);
 	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
+
+	auto hash = Mallob::nonCommutativeHash(clause.begin, clause.size);
+	if (hash % 100 == 1) {
+		hash /= 100;
+		_produced_cls_ofs[solverId]
+			<< Timer::elapsedSeconds() << " "
+			<< hash << " "
+			<< clause.size << " "
+			<< clause.lbd << std::endl;
+	}
 
 	if (tldClauseVec) delete tldClauseVec;
 }
