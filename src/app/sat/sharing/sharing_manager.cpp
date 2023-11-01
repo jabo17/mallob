@@ -207,8 +207,8 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
 
 	auto hash = Mallob::nonCommutativeHash(clause.begin, clause.size);
-	if (hash % 100 == 1) {
-		hash /= 100;
+	if (hash % 10 == 0) {
+		hash /= 10;
 		_produced_cls_ofs[solverId]
 			<< Timer::elapsedSeconds() << " "
 			<< hash << " "
