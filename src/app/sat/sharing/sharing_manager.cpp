@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <unistd.h>
 
+#include "app/sat/sharing/filter/clause_buffer_lbd_scrambler.hpp"
 #include "app/sat/sharing/filter/generic_clause_filter.hpp"
 #include "app/sat/sharing/store/generic_clause_store.hpp"
 #include "app/sat/sharing/store/static_clause_store_by_lbd.hpp"
@@ -47,11 +48,15 @@ SharingManager::SharingManager(
 			return new StaticClauseStoreMixedLbd(_params.strictClauseLengthLimit(),
 				resetLbdAtExport, staticBucketSize);
 		case MALLOB_CLAUSE_STORE_STATIC_BY_LENGTH:
-			return new StaticClauseStore(_params.strictClauseLengthLimit(),
-				resetLbdAtExport, staticBucketSize);
+			return new StaticClauseStore<true>(_params,
+				resetLbdAtExport, staticBucketSize, false, 0);
 		case MALLOB_CLAUSE_STORE_STATIC_BY_LBD:
 			return new StaticClauseStoreByLbd(_params.strictClauseLengthLimit(),
 				resetLbdAtExport, staticBucketSize);
+		case MALLOB_CLAUSE_STORE_ADAPTIVE_SIMPLE:
+			return new StaticClauseStore<true>(_params,
+				resetLbdAtExport, 256, true,
+				_params.clauseBufferBaseSize()*_params.numChunksForExport());
 		case MALLOB_CLAUSE_STORE_ADAPTIVE:
 		default:
 			AdaptiveClauseStore::Setup setup;
@@ -258,6 +263,23 @@ int SharingManager::prepareSharing(int* begin, int totalLiteralLimit, int& succe
 		buffer.resize(_allocated_sharing_buffer_size);
 	}
 
+	// If desired, scramble the LBD scores of featured clauses
+	if (_params.scrambleLbdScores()) {
+		float time = Timer::elapsedSeconds();
+		// 1. Create reader for shared clause buffer
+		auto size = buffer.size();
+		BufferReader reader(buffer.data(), size,
+			_params.strictClauseLengthLimit(), false);
+		// 2. Scramble clauses within each clause length w.r.t. LBD scores
+		ClauseBufferLbdScrambler scrambler(_params, reader);
+		auto modifiedClauseBuffer = scrambler.scrambleLbdScores();
+		// 3. Overwrite clause buffer within our aggregation buffer
+		buffer = std::move(modifiedClauseBuffer);
+		assert(buffer.size() == size);
+		time = Timer::elapsedSeconds() - time;
+		LOGGER(_logger, V4_VVER, "scrambled LBDs in %.4fs\n", time);
+	}
+
 	//assert(buffer.size() <= maxSize);
 	memcpy(begin, buffer.data(), buffer.size()*sizeof(int));
 
@@ -274,30 +296,37 @@ void SharingManager::returnClauses(int* begin, int buflen) {
 
 	auto reader = _clause_store->getBufferReader(begin, buflen);
 
-	// No clause ID alignments: Can just reinsert all clauses, no questions asked
+	// Lock all filters such that solvers write to backlogs instead.
+	float time = Timer::elapsedSeconds();
+	_clause_filter->acquireAllLocks();
+	time = Timer::elapsedSeconds() - time;
+	LOGGER(_logger, V4_VVER, "acquired all clause locks after %.6fs\n", time);
+
 	if (!_id_alignment) {
+		// No clause ID alignments: Can just reinsert all clauses, no questions asked
 		_clause_store->addClauses(reader, &_hist_returned_to_db);
-		return;
-	}
+	} else {
+		auto c = reader.getNextIncomingClause();
+		while (c.begin != nullptr) {
 
-	auto c = reader.getNextIncomingClause();
-	while (c.begin != nullptr) {
+			// For certified UNSAT we need to drop returned clauses which do not
+			// originate from this solver, since we can not un-align them to
+			// correctly insert them into the database.
+			if (_id_alignment->isLocallyProducedClause(ClauseMetadata::readUnsignedLong(c.begin))) {
 
-		// For certified UNSAT we need to drop returned clauses which do not
-		// originate from this solver, since we can not un-align them to
-		// correctly insert them into the database.
-		if (_id_alignment->isLocallyProducedClause(ClauseMetadata::readUnsignedLong(c.begin))) {
+				// Returned clauses would be aligned *again* when re-exported.
+				// => subtract the offsets again here ...
+				_id_alignment->unalignClauseId(c.begin);
 
-			// Returned clauses would be aligned *again* when re-exported.
-			// => subtract the offsets again here ...
-			_id_alignment->unalignClauseId(c.begin);
+				bool success = _clause_store->addClause(c);
+				if (success) _hist_returned_to_db.increment(c.size);
+			}
 
-			bool success = _clause_store->addClause(c);
-			if (success) _hist_returned_to_db.increment(c.size);
+			c = reader.getNextIncomingClause();
 		}
-
-		c = reader.getNextIncomingClause();
 	}
+
+	_clause_filter->releaseAllLocks(); // release filter locks again
 }
 
 int SharingManager::filterSharing(int* begin, int buflen, int* filterOut) {

@@ -57,10 +57,9 @@ void Kissat::diversify(int seed) {
     kissat_set_option(solver, "seed", seed);
 
     // Eliminated variables obstruct the import of many shared clauses (40-90%!).
-    // They are caused by BVE ("eliminate"), autarky reasoning and equivalent literal substitution.
+    // They are caused by BVE ("eliminate") and equivalent literal substitution.
     if (_setup.eliminationSetting == SolverSetup::DISABLE_ALL) {
         kissat_set_option(solver, "eliminate", 0);
-        kissat_set_option(solver, "autarky", 0);
         kissat_set_option(solver, "substitute", 0);
     }
     // Since these are important inprocessing techniques, we may want to cycle through all combinations
@@ -69,18 +68,14 @@ void Kissat::diversify(int seed) {
         if (getDiversificationIndex() % 2 >= 1)
             kissat_set_option(solver, "eliminate", 0);
         if (getDiversificationIndex() % 4 >= 2)
-            kissat_set_option(solver, "autarky", 0);
-        if (getDiversificationIndex() % 8 >= 4)
             kissat_set_option(solver, "substitute", 0);
     }
     if (_setup.eliminationSetting == SolverSetup::DISABLE_SOME && getDiversificationIndex() % 2 == 1) {
-        // Every second configuration, a subset of elim/aut/sub is disabled.
-        int divIdx = (getDiversificationIndex() / 2) % 7;
+        // Every second configuration, a subset of elim/sub is disabled.
+        int divIdx = (getDiversificationIndex() / 2) % 3;
         if (divIdx % 2 == 0)
             kissat_set_option(solver, "eliminate", 0);
         if (divIdx % 4 < 2)
-            kissat_set_option(solver, "autarky", 0);
-        if (divIdx < 4)
             kissat_set_option(solver, "substitute", 0);
     }
 
@@ -88,20 +83,16 @@ void Kissat::diversify(int seed) {
         // Base portfolio of different configurations
         switch (getDiversificationIndex() % getNumOriginalDiversifications()) {
         case 0: kissat_set_option(solver, "eliminate", 0); break;
-        case 1: kissat_set_option(solver, "delay", 10); break;
-        case 2: kissat_set_option(solver, "restartint", 100); break;
-        case 3: kissat_set_option(solver, "walkinitially", 1); break;
-        case 4: kissat_set_option(solver, "restartint", 1000); break;
-        case 5: kissat_set_option(solver, "sweep", 0); break;
-        case 6: kissat_set_configuration(solver, "unsat"); break;
-        case 7: kissat_set_configuration(solver, "sat"); break;
-        case 8: kissat_set_option(solver, "probe", 0); break;
-        case 9: kissat_set_option(solver, "failedcont", 50); kissat_set_option(solver, "failedrounds", 10); break;
-        case 10: kissat_set_option(solver, "minimizedepth", 1e4); break;
-        case 11: kissat_set_option(solver, "modeconflicts", 1e5); kissat_set_option(solver, "modeticks", 1e9); break;
-        case 12: kissat_set_option(solver, "reducefraction", 90); break;
-        case 13: kissat_set_option(solver, "vivifyeffort", 1000); break;
-        case 14: kissat_set_option(solver, "xorsclslim", 8); break;
+        case 1: kissat_set_option(solver, "restartint", 10); break;
+        case 2: kissat_set_option(solver, "walkinitially", 1); break;
+        case 3: kissat_set_option(solver, "restartint", 100); break;
+        case 4: kissat_set_option(solver, "sweep", 0); break;
+        case 5: kissat_set_configuration(solver, "unsat"); break;
+        case 6: kissat_set_configuration(solver, "sat"); break;
+        case 7: kissat_set_option(solver, "probe", 0); break;
+        case 8: kissat_set_option(solver, "minimizedepth", 1e4); break;
+        case 9: kissat_set_option(solver, "reducefraction", 90); break;
+        case 10: kissat_set_option(solver, "vivifyeffort", 1000); break;
         }
     }
 
@@ -130,51 +121,12 @@ void Kissat::diversify(int seed) {
         LOGGER(_logger, V3_VERB, "Sampled restartint=%i decay=%i\n", restartFrequency, decay);
     }
 
-    if (getDiversificationIndex() >= getNumOriginalDiversifications() && _setup.diversifyFanOut) {
-		kissat_set_option(solver, "fanout", 1);
-	}
-
-    // Diversify the order in which the variables are activated.
-    // This is done by generating a pseudo-random permutation from 0 to #vars-1
-    // and then activating the variables in this order.
-    if (getDiversificationIndex() >= getNumOriginalDiversifications() && _setup.diversifyInitShuffle) {
-        SplitMix64Rng rng(seed);
-        float k = 0.1;
-        float shufProbability = 1 - 0.8 * std::exp(-k * (int) (getDiversificationIndex() / getNumOriginalDiversifications() - 1));
-        auto r = rng.randomInRange(0, 1);
-        LOGGER(_logger, V3_VERB, "Init var shuffle decision: %.4f < %.4f\n", r, shufProbability);
-        if (r < shufProbability) {
-            // Shuffle!
-            float time = Timer::elapsedSeconds();
-            kissat_set_option(solver, "manualvaractivation", 1);
-            AdjustablePermutation perm(getSolverSetup().numVars, seed);
-            // With heavy assertions enabled, actually track that all variables
-            // have been activated in the end.
-    #if MALLOB_ASSERT == 2
-            tsl::robin_set<int> activatedVars;
-    #endif
-            for (size_t i = 0; i < getSolverSetup().numVars; i++) {
-                int var = perm.get(i, false)+1;
-                //kissat_activate_variable(solver, var);
-    #if MALLOB_ASSERT == 2
-                activatedVars.insert(var);
-    #endif
-            }
-    #if MALLOB_ASSERT == 2
-            LOGGER(_logger, V3_VERB, "Checking activated vars\n");
-            assert(activatedVars.size() == getSolverSetup().numVars);
-    #endif
-            time = Timer::elapsedSeconds() - time;
-            LOGGER(_logger, V3_VERB, "Init var shuffle took %.3fs\n", time);
-        }
-        }
-
     seedSet = true;
     setClauseSharing(getNumOriginalDiversifications());
 }
 
 int Kissat::getNumOriginalDiversifications() {
-    return 15;
+    return 11;
 }
 
 void Kissat::setPhase(const int var, const bool phase) {
@@ -267,8 +219,9 @@ void Kissat::setLearnedClauseCallback(const LearnedClauseCallback& callback) {
 void Kissat::produceClause(int size, int lbd) {
     if (size > _setup.strictClauseLengthLimit) return;
     learntClause.size = size;
-    // In Kissat, LBD scores are represented from 1 to len-1. => Increment LBD.
-    learntClause.lbd = learntClause.size == 1 ? 1 : lbd+1; 
+    // In Kissat, long clauses of LBD 1 can be exported. => Increment LBD in this case.
+    learntClause.lbd = learntClause.size == 1 ? 1 : lbd;
+    if (learntClause.lbd == 1 && learntClause.size > 1) learntClause.lbd++;
     if (learntClause.lbd > _setup.strictLbdLimit) return;
     learntClause.begin = learntClauseBuffer.data();
     callback(learntClause, _setup.localId);
@@ -284,8 +237,7 @@ void Kissat::consumeClause(int** clause, int* size, int* lbd) {
         memcpy(producedClause.data(), c.begin, c.size*sizeof(int));
         *clause = producedClause.data();
         *size = c.size;
-        // In Kissat, LBD scores are represented from 1 to len-1. => Decrement LBD.
-        *lbd = c.size == 1 ? c.lbd : c.lbd-1;
+        *lbd = c.lbd;
     } else {
         *clause = 0;
         *size = 0;
