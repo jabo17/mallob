@@ -41,6 +41,7 @@ private:
     Mutex suspendMutex;
     ConditionVariable suspendCond;
 
+    	unsigned int solverConfig;
 	unsigned int numDiversifications;
 	unsigned int glueLimit;
 	unsigned int sizeLimit;

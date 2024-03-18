@@ -113,7 +113,8 @@ SharingManager::SharingManager(
 		_solver_revisions.push_back(_solvers[i]->getSolverSetup().solverRevision);
 		_solver_stats.push_back(&_solvers[i]->getSolverStatsRef());
 
-		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(Process::_rank) + "/" + std::to_string(i) + "/" + "produced_cls." + std::to_string(_formula_job_index) + ".log", std::ios_base::out));
+		// log-file in logDir/appRank/localSolverID/ named produced_cls.{InternalJobID}.log
+		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(_job_index) + "/" + std::to_string(i) + "/" + "produced_cls." + std::to_string(_formula_job_index) + ".log", std::ios_base::out));
 	}
 
 	if (_params.deterministicSolving()) {
@@ -203,17 +204,16 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	// Sort literals in clause
 	std::sort(clauseBegin+ClauseMetadata::numBytes(), clauseBegin+clauseSize);
 
-	_export_buffer->produce(clauseBegin, clauseSize, clauseLbd, solverId, _internal_epoch);
+	//_export_buffer->produce(clauseBegin, clauseSize, clauseLbd, solverId, _internal_epoch);
 	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
 
 	auto hash = Mallob::nonCommutativeHash(clause.begin, clause.size);
-	if (hash % 10 == 0) {
-		hash /= 10;
+	if (hash % 16 == 0) {
 		_produced_cls_ofs[solverId]
-			<< Timer::elapsedSeconds() << " "
-			<< hash << " "
-			<< clause.size << " "
-			<< clause.lbd << std::endl;
+			<< std::dec << Timer::elapsedSeconds() << " "
+			<< std::hex << (hash>>4) << " "
+			<< std::dec << clause.size << " "
+			<< std::dec << clause.lbd << std::endl;
 	}
 
 	if (tldClauseVec) delete tldClauseVec;
