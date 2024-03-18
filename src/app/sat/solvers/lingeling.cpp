@@ -97,6 +97,8 @@ Lingeling::Lingeling(const SolverSetup& setup)
     maxvar = 0;
 
 	numDiversifications = 11;
+
+	solverConfig=getDiversificationIndex()%numDiversifications;
 }
 
 void Lingeling::addLiteral(int lit) {
@@ -217,11 +219,17 @@ void Lingeling::unsetSolverSuspend() {
 
 void Lingeling::doProduceUnit(int lit) {
 	assert(lit != 0);
-	numProduced++;
-	producedClause.begin = &lit;
-	producedClause.size = 1;
-	producedClause.lbd = 1;
-	callback(producedClause, getLocalId());
+
+	// export only if hash fingerprint is matched
+	auto hash = Mallob::nonCommutativeHash(&lit, 1);
+	if (hash % numDiversifications == solverConfig) {
+		numProduced++;
+		producedClause.begin = &lit;
+		producedClause.size = 1;
+		producedClause.lbd = 1;
+		
+		callback(producedClause, getLocalId());
+	}
 }
 
 void Lingeling::doProduce(int* cls, int glue) {

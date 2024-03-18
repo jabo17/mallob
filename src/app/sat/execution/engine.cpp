@@ -105,10 +105,25 @@ SatEngine::SatEngine(const Parameters& params, const SatProcessConfig& config, L
 		assert(*out > 0);
 	}
 
+	// Maximum number of Lingeling solvers that should be deployed overall (all processes)
+	//  in advance of cycling through solver choices
+	// Only deploy a Lingeling solver if there can be deployed at least one round of solver Choices
+	const int lingelingSolvers = 11 * static_cast<int>(numOrigSolvers > solverChoices.size());
+	// Number of Lingeling solvers that should be deployed on a single process before cycling through the solver choices
+	// Division of lingelingSolvers/lingelingPerProcess should be integral
+	const int lingelingPerProcess = 1;
+
+	// calculate deployed types of processes
+	auto lingelingPes = std::min<int>(appRank, lingelingSolvers/lingelingPerProcess);
+	auto remainingPes = appRank - lingelingPes;
+
 	// Add solvers from full cycles on previous ranks
 	// and from the begun cycle on the previous rank
-	int numFullCycles = (appRank * numOrigSolvers) / solverChoices.size();
-	int begunCyclePos = (appRank * numOrigSolvers) % solverChoices.size();
+	int solversOfSolverChoices = lingelingPes * (numOrigSolvers-lingelingPerProcess)
+	                                      + remainingPes * numOrigSolvers;
+	int numFullCycles = solversOfSolverChoices / solverChoices.size();
+	int begunCyclePos = solversOfSolverChoices % solverChoices.size();
+
 	bool hasPseudoincrementalSolvers = false;
 	for (size_t i = 0; i < solverChoices.size(); i++) {
 		int* solverToAdd;
@@ -123,6 +138,7 @@ SatEngine::SatEngine(const Parameters& params, const SatProcessConfig& config, L
 		}
 		*solverToAdd += numFullCycles + (i < begunCyclePos);
 	}
+	numLgl += lingelingPerProcess * lingelingPes;
 
 	// Solver-agnostic options each solver in the portfolio will receive
 	SolverSetup setup;
@@ -168,9 +184,26 @@ SatEngine::SatEngine(const Parameters& params, const SatProcessConfig& config, L
 	setup.proofDir = proofDirectory;
 
 	// Instantiate solvers according to the global solver IDs and diversification indices
+	
+	// Start with Lingeling solvers
+	int baseGlobalId = lingelingPerProcess * lingelingPes + solversOfSolverChoices;
+	
+	// Proceed with cycling over solver choices
+
 	int cyclePos = begunCyclePos;
-	for (setup.localId = 0; setup.localId < _num_solvers; setup.localId++) {
-		setup.globalId = appRank * numOrigSolvers + setup.localId;
+	
+
+	// deploy Lingeling solvers; ensure at least one cycle of solverChoices can be deployed
+	setup.solverType = 'l';
+	for (setup.localId = 0; setup.localId < std::min(lingelingPerProcess, static_cast<int>(_num_solvers)-static_cast<int>(solverChoices.size())); setup.localId++) {
+		setup.globalId = baseGlobalId + setup.localId;
+		setup.doIncrementalSolving = false;
+		setup.diversificationIndex = numLgl++;
+		setup.diversificationIndex += diversificationOffset;
+		_solver_interfaces.emplace_back(createSolver(setup));
+	}
+	for (; setup.localId < _num_solvers; setup.localId++) {
+		setup.globalId = baseGlobalId + setup.localId;
 		// Which solver?
 		setup.solverType = solverChoices[cyclePos];
 		setup.doIncrementalSolving = setup.isJobIncremental && !islower(setup.solverType);
@@ -185,6 +218,7 @@ SatEngine::SatEngine(const Parameters& params, const SatProcessConfig& config, L
 		_solver_interfaces.emplace_back(createSolver(setup));
 		cyclePos = (cyclePos+1) % solverChoices.size();
 	}
+	
 
 	_sharing_manager.reset(new SharingManager(_solver_interfaces, _params, _logger, 
 		/*max. deferred literals per solver=*/5*config.maxBroadcastedLitsPerCycle, config.apprank, config.jobid));

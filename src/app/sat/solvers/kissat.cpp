@@ -46,9 +46,16 @@ void Kissat::diversify(int seed) {
 
     if (seedSet) return;
 
-	// Options may only be set in the initialization phase, so the seed cannot be re-set
+    // Options may only be set in the initialization phase, so the seed cannot be re-set
     LOGGER(_logger, V3_VERB, "Diversifying %i\n", getDiversificationIndex());
 
+    int diversificationIdx = getDiversificationIndex();
+
+    if(diversificationIdx > 0) {
+    	kissat_set_option(solver, "ternary", 0);
+	diversificationIdx--;
+    }
+     
     // Basic configuration options for all solvers
     kissat_set_option(solver, "quiet", 1);
     kissat_set_option(solver, "check", 0); // do not check model or derived clauses
@@ -66,16 +73,16 @@ void Kissat::diversify(int seed) {
     // Since these are important inprocessing techniques, we may want to cycle through all combinations
     // of enabling/disabling them.
     if (_setup.eliminationSetting == SolverSetup::DISABLE_MOST) {
-        if (getDiversificationIndex() % 2 >= 1)
+        if (diversificationIdx % 2 >= 1)
             kissat_set_option(solver, "eliminate", 0);
-        if (getDiversificationIndex() % 4 >= 2)
+        if (diversificationIdx % 4 >= 2)
             kissat_set_option(solver, "autarky", 0);
-        if (getDiversificationIndex() % 8 >= 4)
+        if (diversificationIdx % 8 >= 4)
             kissat_set_option(solver, "substitute", 0);
     }
-    if (_setup.eliminationSetting == SolverSetup::DISABLE_SOME && getDiversificationIndex() % 2 == 1) {
+    if (_setup.eliminationSetting == SolverSetup::DISABLE_SOME && diversificationIdx % 2 == 1) {
         // Every second configuration, a subset of elim/aut/sub is disabled.
-        int divIdx = (getDiversificationIndex() / 2) % 7;
+        int divIdx = (diversificationIdx / 2) % 7;
         if (divIdx % 2 == 0)
             kissat_set_option(solver, "eliminate", 0);
         if (divIdx % 4 < 2)
@@ -84,9 +91,13 @@ void Kissat::diversify(int seed) {
             kissat_set_option(solver, "substitute", 0);
     }
 
+    // Test if less duplicates appear if probe is disabled
+    //kissat_set_option(solver, "probe", 0);
+    // Test if less duplicates appear if ternary (in probe) is disabled
+
     if (_setup.diversifyNative) {
         // Base portfolio of different configurations
-        switch (getDiversificationIndex() % getNumOriginalDiversifications()) {
+        switch (diversificationIdx % getNumOriginalDiversifications()) {
         case 0: kissat_set_option(solver, "eliminate", 0); break;
         case 1: kissat_set_option(solver, "delay", 10); break;
         case 2: kissat_set_option(solver, "restartint", 100); break;
@@ -106,7 +117,7 @@ void Kissat::diversify(int seed) {
     }
 
     // Randomize ("jitter") certain options around their default value
-    if (getDiversificationIndex() >= getNumOriginalDiversifications() && _setup.diversifyNoise) {
+    if (diversificationIdx >= getNumOriginalDiversifications() && _setup.diversifyNoise) {
         std::mt19937 rng(seed);
         Distribution distribution(rng);
 
@@ -120,27 +131,28 @@ void Kissat::diversify(int seed) {
         kissat_set_option(solver, "restartint", restartFrequency);
 
         // Randomize score decay
-        double meanDecay = kissat_get_option(solver, "decay");
-        distribution.configure(Distribution::NORMAL, std::vector<double>{
-            /*mean=*/meanDecay, /*stddev=*/3, /*min=*/1, /*max=*/200
-        });
-        int decay = (int) std::round(distribution.sample());
-        kissat_set_option(solver, "decay", decay);
+	//double meanDecay = kissat_get_option(solver, "decay");
+        //distribution.configure(Distribution::NORMAL, std::vector<double>{
+        //    /*mean=*/meanDecay, /*stddev=*/3, /*min=*/1, /*max=*/200
+        //});
+        //int decay = (int) std::round(distribution.sample());
+        //kissat_set_option(solver, "decay", decay);
         
-        LOGGER(_logger, V3_VERB, "Sampled restartint=%i decay=%i\n", restartFrequency, decay);
+        LOGGER(_logger, V3_VERB, "Sampled restartint=%i\n", restartFrequency);
+        //LOGGER(_logger, V3_VERB, "Sampled restartint=%i decay=%i\n", restartFrequency, decay);
     }
 
-    if (getDiversificationIndex() >= getNumOriginalDiversifications() && _setup.diversifyFanOut) {
+    if (diversificationIdx >= getNumOriginalDiversifications() && _setup.diversifyFanOut) {
 		kissat_set_option(solver, "fanout", 1);
 	}
 
     // Diversify the order in which the variables are activated.
     // This is done by generating a pseudo-random permutation from 0 to #vars-1
     // and then activating the variables in this order.
-    if (getDiversificationIndex() >= getNumOriginalDiversifications() && _setup.diversifyInitShuffle) {
+    if (diversificationIdx >= getNumOriginalDiversifications() && _setup.diversifyInitShuffle) {
         SplitMix64Rng rng(seed);
         float k = 0.1;
-        float shufProbability = 1 - 0.8 * std::exp(-k * (int) (getDiversificationIndex() / getNumOriginalDiversifications() - 1));
+        float shufProbability = 1 - 0.8 * std::exp(-k * (int) (diversificationIdx / getNumOriginalDiversifications() - 1));
         auto r = rng.randomInRange(0, 1);
         LOGGER(_logger, V3_VERB, "Init var shuffle decision: %.4f < %.4f\n", r, shufProbability);
         if (r < shufProbability) {

@@ -69,14 +69,15 @@ void Cadical::diversify(int seed) {
         okay = solver->set("restartint", restartFrequency); assert(okay);
 
         // Randomize score decay
-        double meanDecay = solver->get("scorefactor");
-        distribution.configure(Distribution::NORMAL, std::vector<double>{
-            /*mean=*/meanDecay, /*stddev=*/3, /*min=*/500, /*max=*/1000
-        });
-        int decay = (int) std::round(distribution.sample());
-        okay = solver->set("scorefactor", decay); assert(okay);
+        //double meanDecay = solver->get("scorefactor");
+        //distribution.configure(Distribution::NORMAL, std::vector<double>{
+        //    /*mean=*/meanDecay, /*stddev=*/3, /*min=*/500, /*max=*/1000
+        //});
+        //int decay = (int) std::round(distribution.sample());
+        //okay = solver->set("scorefactor", decay); assert(okay);
         
-        LOGGER(_logger, V3_VERB, "Sampled restartint=%i decay=%i\n", restartFrequency, decay);
+        //LOGGER(_logger, V3_VERB, "Sampled restartint=%i decay=%i\n", restartFrequency, decay);
+        LOGGER(_logger, V3_VERB, "Sampled restartint=%i\n", restartFrequency);
     }
 
 	if (getDiversificationIndex() >= getNumOriginalDiversifications() && _setup.diversifyFanOut) {
