@@ -266,7 +266,8 @@ void JsonInterface::handleJobDone(JobResult&& result, const JobDescription::Stat
             { "scheduling", stats.schedulingTime },
             { "first_balancing_latency", stats.latencyOf1stVolumeUpdate },
             { "processing", stats.processingTime },
-            { "total", Timer::elapsedSeconds() - img->arrivalTime }
+	    { "arrival_timestamp", img->arrivalTime },
+	    { "total", Timer::elapsedSeconds() - img->arrivalTime }
         } },
         { "used_wallclock_seconds" , stats.usedWallclockSeconds },
         { "used_cpu_seconds" , stats.usedCpuSeconds }
