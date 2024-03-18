@@ -169,6 +169,11 @@ void Kissat::diversify(int seed) {
         }
         }
 
+    if (_setup.baselinePlus) {
+	    LOGGER(_logger, V3_VERB, "Disable ternary\n");
+	kissat_set_option(solver, "ternary", 0);
+    }
+
     seedSet = true;
     setClauseSharing(getNumOriginalDiversifications());
 }

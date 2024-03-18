@@ -20,11 +20,19 @@ protected:
     int _solver_revision {0};
     Mutex _mtx_revision;
 
+    int _nb_div_blocks {0};
+    int _global_id;
+
 public:
     GenericImportManager(const SolverSetup& setup, SolverStatistics& stats) : _stats(stats), 
         _max_clause_length(setup.strictClauseLengthLimit),
         _reset_lbd(setup.resetLbdBeforeImport),
-        _increment_lbd(setup.incrementLbdBeforeImport) {}
+        _increment_lbd(setup.incrementLbdBeforeImport) {
+	if (setup.baselinePlus) {
+		_nb_div_blocks = setup.globalId % 11;
+		_global_id = setup.globalId;
+	}
+	}
     virtual ~GenericImportManager() {};
 
     virtual void addSingleClause(const Mallob::Clause& c) = 0;
@@ -38,6 +46,11 @@ public:
         _solver_revision = solverRevision;
     }
     bool canImport() {
+	if (_nb_div_blocks > 0 && !empty()) {
+		_nb_div_blocks--;
+		if (_nb_div_blocks == 0) LOG(V4_VVER, "S%i not import-blocked any longer\n", _global_id);
+		return false;		
+	}
         return _solver_revision >= _imported_revision;
     }
     virtual const std::vector<int>& getUnitsBuffer() = 0;

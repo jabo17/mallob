@@ -204,9 +204,6 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	// Sort literals in clause
 	std::sort(clauseBegin+ClauseMetadata::numBytes(), clauseBegin+clauseSize);
 
-	_export_buffer->produce(clauseBegin, clauseSize, clauseLbd, solverId, _internal_epoch);
-	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
-
 	auto hash = Mallob::nonCommutativeHash(clause.begin, clause.size);
 	if (hash % 16 == 0) {
 		_produced_cls_ofs[solverId]
@@ -215,6 +212,27 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 			<< std::dec << clause.size << " "
 			<< std::dec << clause.lbd << std::endl;
 	}
+
+	if (clauseSize == 1 && _params.baselinePlus()) {
+		int globalId = _solvers[solverId]->getSolverSetup().globalId;
+		if (globalId % 3 == 2) {
+			// lgl
+			assert(_solvers[solverId]->getSolverSetup().solverType == 'l');
+			int lglId = (globalId-2) / 3;
+			int nbLgls = _params.baselinePlusNbLgls();
+			assert(lglId >= 0);
+			assert(lglId < nbLgls);
+			int remainder = hash % nbLgls;
+			if (remainder != lglId && remainder != ((lglId+1) % nbLgls)) {
+				//LOG(V2_INFO, "S%i [Lgl#%i] UNIT %i BLOCKED\n", globalId, lglId, clauseBegin[0]);
+				return; // do not export unit
+			}
+			//LOG(V2_INFO, "S%i [Lgl#%i] UNIT %i PASSED\n", globalId, lglId, clauseBegin[0]);
+		}
+	}
+
+	_export_buffer->produce(clauseBegin, clauseSize, clauseLbd, solverId, _internal_epoch);
+	//log(V6_DEBGV, "%i : PRODUCED %s\n", solverId, tldClause.toStr().c_str());
 
 	if (tldClauseVec) delete tldClauseVec;
 }

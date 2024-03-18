@@ -166,6 +166,7 @@ SatEngine::SatEngine(const Parameters& params, const SatProcessConfig& config, L
 	setup.numVars = numVars;
 	setup.numOriginalClauses = numClauses;
 	setup.proofDir = proofDirectory;
+	setup.baselinePlus = params.baselinePlus();
 
 	// Instantiate solvers according to the global solver IDs and diversification indices
 	int cyclePos = begunCyclePos;

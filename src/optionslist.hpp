@@ -137,5 +137,7 @@ OPTION_GROUP(grpDebug, "debug", "Debugging")
 ///////////////////////////////////////////////////////////////////////
 
 OPT_BOOL(deterministicSolving,           "ds", "deterministic-solving",                          false,                       "Perform deterministic solving (only with -mono) - considerably slower!")
+OPT_BOOL(baselinePlus, "baseline-plus", "", false, "Enable Baseline+ configuration")
+OPT_INT(baselinePlusNbLgls, "baseline-plus-nb-lgls", "", 253, 0, LARGE_INT, "# Lingeling solvers globally")
 
 #endif

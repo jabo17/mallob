@@ -82,6 +82,7 @@ Lingeling::Lingeling(const SolverSetup& setup)
 
 	// Sync (i.e., export) unit clauses more frequently
 	lglsetopt(solver, "syncunint", 11111); // down from 111'111
+	if (setup.baselinePlus) lglsetopt(solver, "syncunint", 1111);
 	
 	lastTermCallbackTime = Timer::elapsedSeconds();
 
