@@ -5,6 +5,8 @@
 #include <memory>
 #include <list>
 
+#include "../../../../tools/clause-lab/header/clause_overlap_logger.h"
+
 #include "app/sat/sharing/clause_id_alignment.hpp"
 #include "app/sat/sharing/clause_logger.hpp"
 #include "app/sat/sharing/generic_export_manager.hpp"
@@ -32,7 +34,7 @@ protected:
 	std::vector<int> _solver_revisions;
 
 	// file streams to output produced
-	std::vector<std::ofstream> _produced_cls_ofs;
+	std::vector<ClauseOverlapLogger> _clause_loggers;
 
 	SolverStatistics _returned_clauses_stats;
 

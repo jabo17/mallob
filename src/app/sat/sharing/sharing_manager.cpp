@@ -113,8 +113,12 @@ SharingManager::SharingManager(
 		_solver_revisions.push_back(_solvers[i]->getSolverSetup().solverRevision);
 		_solver_stats.push_back(&_solvers[i]->getSolverStatsRef());
 
-		// log-file in logDir/appRank/localSolverID/ named produced_cls.{InternalJobID}.log
-		_produced_cls_ofs.push_back(std::ofstream(_params.logDirectory.getValAsString() + "/" + std::to_string(_job_index) + "/" + std::to_string(i) + "/" + "produced_cls." + std::to_string(_formula_job_index) + ".log", std::ios_base::out));
+                // log-file in formulalogDir/localSolverID/ named produced_cls.{InternalJobID}.log
+                // the member _clause_loggers is a std::vector<ClauseLogger>
+                // Mallob::nonCommutativeHash is a non-commutative hash function for clauses defined in src/app/sat/data/clause.hpp
+                // note that a non-commutativ hash function is sufficient because the clause is sorted by literals before it is logged
+                _clause_loggers.emplace_back([](int* sortedClause, int clauseSize){return Mallob::nonCommutativeHash(sortedClause, clauseSize);});
+                _clause_loggers.back().open(_params.logDirectory.getValAsString().c_str(), _job_index, i);
 	}
 
 	if (_params.deterministicSolving()) {
@@ -204,14 +208,9 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 	// Sort literals in clause
 	std::sort(clauseBegin+ClauseMetadata::numBytes(), clauseBegin+clauseSize);
 
-	auto hash = Mallob::nonCommutativeHash(clause.begin, clause.size);
-	if (hash % 16 == 0) {
-		_produced_cls_ofs[solverId]
-			<< std::dec << Timer::elapsedSeconds() << " "
-			<< std::hex << (hash>>4) << " "
-			<< std::dec << clause.size << " "
-			<< std::dec << clause.lbd << std::endl;
-	}
+
+        // log clause
+        _clause_loggers[solverId].log(clause.begin, clauseSize, clauseLbd, Timer::elapsedSeconds());
 
 	if (clauseSize == 1 && _params.baselinePlus()) {
 		int globalId = _solvers[solverId]->getSolverSetup().globalId;
@@ -222,6 +221,7 @@ void SharingManager::onProduceClause(int solverId, int solverRevision, const Cla
 			int nbLgls = _params.baselinePlusNbLgls();
 			assert(lglId >= 0);
 			assert(lglId < nbLgls);
+                        auto hash = Mallob::nonCommutativeHash(clause.begin, clauseSize);
 			int remainder = hash % nbLgls;
 			if (remainder != lglId && remainder != ((lglId+1) % nbLgls)) {
 				//LOG(V2_INFO, "S%i [Lgl#%i] UNIT %i BLOCKED\n", globalId, lglId, clauseBegin[0]);
@@ -527,4 +527,9 @@ void SharingManager::continueClauseImport(int solverId) {
 	_solver_stats[solverId] = &_solvers[solverId]->getSolverStatsRef();
 }
 
-SharingManager::~SharingManager() {}
+SharingManager::~SharingManager() {
+  // close the file streams
+  for (size_t i = 0; i < _solvers.size(); i++) {
+    _clause_loggers[i].close();
+  }
+}
